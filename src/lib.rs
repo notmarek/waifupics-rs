@@ -1,3 +1,11 @@
+#[derive(thiserror::Error, Debug)]
+pub enum WaifuPicsError {
+    #[error("reqwest error")]
+    ReqwestError(#[from] reqwest::Error),
+
+    #[error("no picture found")]
+    NoPicture,
+}
 pub enum CategorySFW {
     Waifu,
     Neko,
@@ -91,7 +99,11 @@ impl std::fmt::Display for CategoryNSFW {
 
 pub const API_URL: &str = "https://api.waifu.pics";
 
-pub async fn get_with_client(client: &reqwest::Client, category: impl std::fmt::Display, many: bool) -> Result<Vec<String>, reqwest::Error> {
+pub async fn get_with_client(
+    client: &reqwest::Client,
+    category: impl std::fmt::Display,
+    many: bool,
+) -> Result<Vec<String>, reqwest::Error> {
     use serde::Deserialize;
     #[derive(Deserialize)]
     struct WaifuPicture {
@@ -104,11 +116,48 @@ pub async fn get_with_client(client: &reqwest::Client, category: impl std::fmt::
 
     if many {
         let req_uri = format!("{}/many/{}", API_URL, category);
-        let r = client.get(&req_uri).send().await?.json::<WaifuPictures>().await?;
+        let r = client
+            .post(&req_uri)
+            .body("{}")
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .send()
+            .await?
+            .json::<WaifuPictures>()
+            .await?;
         Ok(r.files)
     } else {
         let req_uri = format!("{}/{}", API_URL, category);
-        let r = client.get(&req_uri).send().await?.json::<WaifuPicture>().await?;
+        let r = client
+            .get(&req_uri)
+            .send()
+            .await?
+            .json::<WaifuPicture>()
+            .await?;
         Ok(vec![r.url])
     }
+}
+
+pub async fn get_single_with_client(
+    client: &reqwest::Client,
+    category: impl std::fmt::Display,
+) -> Result<String, WaifuPicsError> {
+    Ok(get_with_client(client, category, false)
+        .await?
+        .pop()
+        .ok_or(WaifuPicsError::NoPicture)?)
+}
+
+pub async fn get(category: impl std::fmt::Display) -> Result<String, WaifuPicsError> {
+    get_single_with_client(&reqwest::Client::new(), category).await
+}
+
+pub async fn get_many_with_client(
+    client: &reqwest::Client,
+    category: impl std::fmt::Display,
+) -> Result<Vec<String>, WaifuPicsError> {
+    Ok(get_with_client(client, category, true).await?)
+}
+
+pub async fn get_many(category: impl std::fmt::Display) -> Result<Vec<String>, WaifuPicsError> {
+    get_many_with_client(&reqwest::Client::new(), category).await
 }
