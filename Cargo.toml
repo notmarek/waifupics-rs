@@ -2,6 +2,7 @@
 name = "waifupics-rs"
 version = "0.1.0"
 edition = "2018"
+description = "Rust wrapper for waifu.pics."
 license = "CC0-1.0"
 license-file = "LICENSE"
 repository = "https://github.com/notmarek/waifupics-rs"
