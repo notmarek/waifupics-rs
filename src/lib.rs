@@ -6,6 +6,8 @@ pub enum WaifuPicsError {
     #[error("no picture found")]
     NoPicture,
 }
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CategorySFW {
     Waifu,
     Neko,
@@ -40,8 +42,8 @@ pub enum CategorySFW {
     Cringe,
 }
 
-impl std::fmt::Display for CategorySFW {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl CategorySFW {
+    pub fn to_url_path(self) -> &'static str {
         match self {
             CategorySFW::Waifu => "sfw/waifu",
             CategorySFW::Neko => "sfw/neko",
@@ -75,25 +77,52 @@ impl std::fmt::Display for CategorySFW {
             CategorySFW::Dance => "sfw/dance",
             CategorySFW::Cringe => "sfw/cringe",
         }
-        .fmt(f)
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CategoryNSFW {
     Waifu,
     Neko,
     Trap,
     Blowjob,
 }
-impl std::fmt::Display for CategoryNSFW {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+
+impl CategoryNSFW {
+    pub fn to_url_path(self) -> &'static str {
         match self {
             CategoryNSFW::Waifu => "nsfw/waifu",
             CategoryNSFW::Neko => "nsfw/neko",
             CategoryNSFW::Trap => "nsfw/trap",
             CategoryNSFW::Blowjob => "nsfw/blowjob",
         }
-        .fmt(f)
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Category {
+    Sfw(CategorySFW),
+    Nsfw(CategoryNSFW),
+}
+
+impl Category {
+    fn to_url_path(self) -> &'static str {
+        match self {
+            Self::Sfw(c) => c.to_url_path(),
+            Self::Nsfw(c) => c.to_url_path(),
+        }
+    }
+}
+
+impl From<CategorySFW> for Category {
+    fn from(c: CategorySFW) -> Self {
+        Self::Sfw(c)
+    }
+}
+
+impl From<CategoryNSFW> for Category {
+    fn from(c: CategoryNSFW) -> Self {
+        Self::Nsfw(c)
     }
 }
 
@@ -101,9 +130,10 @@ pub const API_URL: &str = "https://api.waifu.pics";
 
 pub async fn get_with_client(
     client: &reqwest::Client,
-    category: impl std::fmt::Display,
+    category: impl Into<Category>,
     many: bool,
 ) -> Result<Vec<String>, reqwest::Error> {
+    let category: Category = category.into();
     use serde::Deserialize;
     #[derive(Deserialize)]
     struct WaifuPicture {
@@ -115,7 +145,7 @@ pub async fn get_with_client(
     }
 
     if many {
-        let req_uri = format!("{}/many/{}", API_URL, category);
+        let req_uri = format!("{}/many/{}", API_URL, category.to_url_path());
         let r = client
             .post(&req_uri)
             .body("{}")
@@ -126,7 +156,7 @@ pub async fn get_with_client(
             .await?;
         Ok(r.files)
     } else {
-        let req_uri = format!("{}/{}", API_URL, category);
+        let req_uri = format!("{}/{}", API_URL, category.to_url_path());
         let r = client
             .get(&req_uri)
             .send()
@@ -139,7 +169,7 @@ pub async fn get_with_client(
 
 pub async fn get_single_with_client(
     client: &reqwest::Client,
-    category: impl std::fmt::Display,
+    category: impl Into<Category>,
 ) -> Result<String, WaifuPicsError> {
     Ok(get_with_client(client, category, false)
         .await?
@@ -147,17 +177,17 @@ pub async fn get_single_with_client(
         .ok_or(WaifuPicsError::NoPicture)?)
 }
 
-pub async fn get(category: impl std::fmt::Display) -> Result<String, WaifuPicsError> {
+pub async fn get(category: impl Into<Category>) -> Result<String, WaifuPicsError> {
     get_single_with_client(&reqwest::Client::new(), category).await
 }
 
 pub async fn get_many_with_client(
     client: &reqwest::Client,
-    category: impl std::fmt::Display,
+    category: impl Into<Category>,
 ) -> Result<Vec<String>, WaifuPicsError> {
     Ok(get_with_client(client, category, true).await?)
 }
 
-pub async fn get_many(category: impl std::fmt::Display) -> Result<Vec<String>, WaifuPicsError> {
+pub async fn get_many(category: impl Into<Category>) -> Result<Vec<String>, WaifuPicsError> {
     get_many_with_client(&reqwest::Client::new(), category).await
 }
